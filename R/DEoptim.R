@@ -72,7 +72,7 @@ DEoptim.control <- function(VTR = -Inf, strategy = 2, bs = FALSE, NP = NA,
        foreachArgs)
 }
 
-DEoptim <- function(fn, lower, upper, control = DEoptim.control(), ...,
+DEoptim <- function(fn, lower, upper, control = DEoptim.control(), ..., cl,
                     fnMap=NULL) {
   if (length(lower) != length(upper))
     stop("'lower' and 'upper' are not of same length")
@@ -121,7 +121,23 @@ DEoptim <- function(fn, lower, upper, control = DEoptim.control(), ...,
   ctrl$trace <- as.numeric(ctrl$trace)
   ctrl$specinitialpop <- as.numeric(ctrl$specinitialpop)
   ctrl$initialpop <- as.numeric(ctrl$initialpop)
-  if(ctrl$parallelType == 2) { ## use foreach 
+  if(ctrl$parallelType == 3) { ## use foreach 
+    if(missing(cl)) stop("If parallelType is 3, then you must provide a cluster to cl arg")
+    use.parallel <- suppressMessages(require(parallel,quietly=TRUE))
+    if(!use.parallel)
+      stop("parallel package not available but parallelType set to 1")
+    #cl <- parallel::makeCluster(parallel::detectCores())
+    packFn <- function(packages) {
+      for(i in packages)
+        library(i, character.only = TRUE)
+    }
+    parallel::clusterCall(cl, packFn, ctrl$packages)
+    parallel::clusterExport(cl, ctrl$parVar)
+    fnPop <- function(params, ...) {
+      parallel::parApply(cl=cl,params,1,fn,...)
+    }
+    
+  } else if(ctrl$parallelType == 2) { ## use foreach 
     use.foreach <- suppressMessages(require(foreach,quietly=TRUE))
     if(!use.foreach)
       stop("foreach package not available but parallelType set to 2")
